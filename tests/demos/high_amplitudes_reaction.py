@@ -2,10 +2,10 @@
 # Zakhar-the-Robot - Auditory Toolkit, Nikita Mortuzaiev, 2022
 ##############################################################
 
-import numpy as np
 import time
 from tkinter import NW, Tk, Canvas
 
+import numpy as np
 from brian2 import Hz, kHz, second
 from brian2hears import dB_type, Sound
 from PIL import ImageTk, Image
@@ -34,7 +34,7 @@ tone = Sound.tone(440*Hz, segment_duration, nchannels=n_channels).atlevel(dB_typ
 sound = Sound.sequence([tone, noise] * 10)
 # sound.play(sleep=True)
 
-cochleagram, center_freqs = cochlea(sound, n_channels=128, min_freq=20*Hz, max_freq=20*kHz, return_cf=True)
+cochleagram, center_freqs = cochlea(sound, n_channels=64, min_freq=20*Hz, max_freq=20*kHz, return_cf=True)
 filterbank = ThresholdFilterbank(cochleagram, threshold=0.25)
 
 samples_fetched = 0
@@ -49,46 +49,28 @@ faces = {
 current_face = faces["calm"]
 
 
-class ThresholdPublisherThread(ZmqPublisherThread):
-
-    """Publisher thread that works with the threshold filterbank."""
-
-    def _thread_target_once(self):
-        time_start = time.time()
-        freqs_info = self.publish_callback()
-        callback_time = time.time() - time_start
-
-        if sum(freqs_info) > 0:
-            freqs_info_str = "".join(freqs_info.astype(str))
-            to_send = f"{self.topic} {freqs_info_str}"
-            self.socket.send_string(to_send)
-            self.log.info(f"Published: {to_send}")
-
-        if callback_time < self.publishing_period_s:
-            time.sleep(self.publishing_period_s - callback_time)
-
-
 def publisher_callback():
     global samples_fetched
     to_fetch = 8000
     buffer = filterbank.buffer_fetch(samples_fetched, samples_fetched + to_fetch)
     samples_fetched += to_fetch
 
-    freqs_info = buffer.any(axis=0).astype(np.int)
+    freqs_info = buffer.any(axis=0).astype(int)
     freqs_info_str = "".join(freqs_info.astype(str))
 
     cf = center_freqs[np.where(freqs_info)[0]][0] if freqs_info.sum() > 0 else None
 
     print(f"Buffer shape: {buffer.shape}, "
           f"buffer start: {filterbank.cached_buffer_start / filterbank.samplerate}, "
-          f"first freq: {cf}, freqs: {freqs_info_str}")
+          f"first freq: {cf}, threshold exceeded: {freqs_info_str}")
 
-    return freqs_info
+    return freqs_info_str
 
 
 def subscriber_callback(msg):
     global current_face
-    channels_exceeded = sum([int(c) for c in msg])
+    data = msg.split(" ", maxsplit=1)
+    channels_exceeded = sum([int(c) for c in data])
 
     if channels_exceeded > 5:
         print("Changing expression to \"angry\"")
@@ -105,7 +87,7 @@ def subscriber_callback(msg):
 
 if __name__ == "__main__":
 
-    pub = ThresholdPublisherThread(port, topic, publisher_callback, publishing_freq_hz=1)
+    pub = ZmqPublisherThread(port, topic, publisher_callback, publishing_freq_hz=1)
     sub = ZmqSubscriberThread(port, topic, subscriber_callback, address)
 
     pub.start()
