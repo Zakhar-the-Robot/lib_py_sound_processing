@@ -11,8 +11,8 @@ from brian2hears import dB_type, Sound
 from PIL import ImageTk, Image
 
 from brain_pycore.zmq import ZmqPublisherThread, ZmqSubscriberThread
-from src.auditory_toolkit.casa.cochleagram import cochlea
-from src.auditory_toolkit.filterbanks.time_frequency import ThresholdFilterbank
+from auditory_toolkit.casa.cochleagram import cochlea
+from auditory_toolkit.filterbanks.time_frequency import ThresholdFilterbank
 
 from images import *
 
@@ -25,11 +25,11 @@ canvas = Canvas(tk, width=336, height=256)
 canvas.pack()
 
 samplerate = 8*kHz
-segment_duration = 2*second
+segment_duration = 1*second
 n_channels = 1  # Change to 2 if you want to play the sound
 
-noise = Sound.whitenoise(segment_duration, samplerate=samplerate, nchannels=n_channels).atlevel(dB_type(70))
-tone = Sound.tone(440*Hz, segment_duration, nchannels=n_channels).atlevel(dB_type(70))
+noise = Sound.whitenoise(segment_duration, samplerate=samplerate, nchannels=n_channels).atlevel(dB_type(100))
+tone = Sound.tone(440*Hz, segment_duration, nchannels=n_channels).atlevel(dB_type(100))
 
 sound = Sound.sequence([tone, noise] * 10)
 # sound.play(sleep=True)
